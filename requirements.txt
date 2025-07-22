@@ -1,5 +1,6 @@
-selenium
-yt-dlp
-chromedriver-autoinstaller
-requests
-# tkinter 
+selenium>=4.0.0
+yt-dlp>=2024.4.14
+chromedriver-autoinstaller>=0.6.4
+requests>=2.31.0
+pyinstaller>=6.0.0  # For building executables (dev only)
+# tkinter is included with standard Python installations on Windows and macOS
