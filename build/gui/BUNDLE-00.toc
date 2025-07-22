@@ -1,0 +1,1 @@
+([('gui', '/Users/aoi/Documents/pytok/dist/gui', 'EXECUTABLE')],)

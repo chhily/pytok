@@ -1,0 +1,5 @@
+selenium
+yt-dlp
+chromedriver-autoinstaller
+requests
+# tkinter 
