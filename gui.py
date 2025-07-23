@@ -4,6 +4,7 @@ import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 from license_validator import LicenseValidator
+from yt_dlp import YoutubeDL  # Add this import at the top
 
 # --- Configuration ---https://qngsvqkvvhvfiyhqnklu.supabase.co/functions/v1/validate_license
 SUPABASE_URL = "https://qngsvqkvvhvfiyhqnklu.supabase.co"
@@ -49,7 +50,7 @@ class TikTokDownloader:
         license_frame = self._create_labelframe("License Validation", STYLE["colors"]["frame_bg"])
         
         tk.Label(license_frame, text="Enter License Key:", font=STYLE["font_normal"], bg=STYLE["colors"]["frame_bg"], fg=STYLE["colors"]["text_light"]).pack(pady=(10, 5))
-        self.license_key_entry = tk.Entry(license_frame, font=("Segoe UI", 11), width=45, show="*", bg=STYLE["colors"]["bg"], fg=STYLE["colors"]["text_light"], insertbackground=STYLE["colors"]["text_light"])
+        self.license_key_entry = tk.Entry(license_frame, font=("Segoe UI", 11), width=45, bg=STYLE["colors"]["bg"], fg=STYLE["colors"]["text_light"], insertbackground=STYLE["colors"]["text_light"])
         self.license_key_entry.pack(pady=STYLE["padding"]["pady"])
         self.license_key_entry.bind('<Return>', lambda e: self.check_license_key())
 
@@ -190,48 +191,35 @@ class TikTokDownloader:
         threading.Thread(target=self._run_download_in_thread, args=(username,), daemon=True).start()
 
     def _run_download_in_thread(self, username):
-        """Worker function for running the yt-dlp process."""
+        """Worker function for running the yt-dlp process using Python API."""
         profile_url = f"https://www.tiktok.com/@{username}"
         output_folder = os.path.join("downloads", username)
         os.makedirs(output_folder, exist_ok=True)
 
-        try:
-            command = [
-                "yt-dlp", profile_url,
-                "-o", os.path.join(output_folder, "%(title)s.%(ext)s"),
-                "--yes-playlist", "--continue", "--no-overwrites",
-                # "--write-description", "--write-info-json"  # Commented: Only download video files
-            ]
-            self.yt_dlp_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-            
-            video_count = 0
-            for line in self.yt_dlp_process.stdout:
-                if "Downloading video" in line:
-                    video_count += 1
-                    # Try to extract video title from the line if present
-                    title = ""
-                    if ":" in line:
-                        title = line.split("Downloading video")[-1].strip(": \n")
-                    status_msg = f"📥 Downloading video #{video_count}"
-                    if title:
-                        status_msg += f": {title}"
-                    self.root.after(0, self._update_status, status_msg, "primary")
-                elif "%" in line and "ETA" in line:
-                    try:
-                        percent = float(line.split("%")[0].split()[-1].strip())
-                        self.root.after(0, lambda p=percent: self.progress_bar.config(value=p))
-                    except (ValueError, IndexError):
-                        pass
-            
-            return_code = self.yt_dlp_process.wait()
-            self.root.after(0, self.on_download_complete, return_code, username, video_count)
+        ydl_opts = {
+            'outtmpl': os.path.join(output_folder, '%(title)s.%(ext)s'),
+            'yesplaylist': True,
+            'continue_dl': True,
+            'nooverwrites': True,
+            # Add more options as needed
+        }
 
-        except FileNotFoundError:
-             self.root.after(0, lambda: messagebox.showerror("yt-dlp Not Found", "yt-dlp is not installed or not in your system's PATH."))
+        video_count = 0
+
+        try:
+            with YoutubeDL(ydl_opts) as ydl:
+                result = ydl.extract_info(profile_url, download=True)
+                # If result is a playlist, count entries
+                if 'entries' in result:
+                    video_count = len(result['entries'])
+                else:
+                    video_count = 1
+
+            self.root.after(0, self.on_download_complete, 0, username, video_count)
+
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("Download Error", f"An unexpected error occurred: {e}"))
         finally:
-            self.yt_dlp_process = None
             self.root.after(0, lambda: (self.download_btn.config(state="normal"), self.cancel_btn.config(state="disabled")))
 
     def on_download_complete(self, return_code, username, video_count):
